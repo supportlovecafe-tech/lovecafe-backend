@@ -1,0 +1,21 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 10
+      arrivalRate: 5
+      name: "Warm up phase"
+    - duration: 30
+      arrivalRate: 20
+      rampTo: 50
+      name: "Ramp up load"
+    - duration: 30
+      arrivalRate: 50
+      name: "Sustained high load"
+scenarios:
+  - name: "Fetch Menu"
+    flow:
+      - get:
+          url: "/api/menu?cinemaId=1"
+          expect:
+            - statusCode: 200
+            - contentType: json

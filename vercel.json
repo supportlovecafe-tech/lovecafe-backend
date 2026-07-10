@@ -1,0 +1,9 @@
+{
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/worker/process-queue?secret=bishaktochele",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}

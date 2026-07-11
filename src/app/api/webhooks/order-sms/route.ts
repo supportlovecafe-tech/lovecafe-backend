@@ -50,10 +50,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: 'Mock SMS logged. Configure JIO_ variables to send.' });
     }
 
-    // Clean up phone number
+    // Clean up phone number and ensure it starts with 91 for Jio API
     let sanitizedPhone = customerPhone.replace(/\D/g, '');
-    if (sanitizedPhone.length > 10 && sanitizedPhone.startsWith('91')) {
-      sanitizedPhone = sanitizedPhone.slice(2);
+    if (sanitizedPhone.length === 10) {
+      sanitizedPhone = '91' + sanitizedPhone;
+    } else if (sanitizedPhone.length > 10 && !sanitizedPhone.startsWith('91')) {
+      sanitizedPhone = '91' + sanitizedPhone.slice(-10);
     }
 
     // Prepare JSON payload for Jio POST API

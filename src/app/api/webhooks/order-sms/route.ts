@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     }
 
     const orderId = order.display_id || 'Unknown';
-    const billUrl = `https://billing.lovecafe.org.in/b?${orderId}`;
+    const billUrl = `https://admin.lovecafe.org.in/b?${orderId}`;
 
     // Exactly matching the approved JioCX DLT Template
     const messageText = `Dear customer, your LOVECAFE Order of Amount: Rs.${rupees}. ${paise} is confirmed\nBill: ${billUrl}\nThank you & visit again.`;

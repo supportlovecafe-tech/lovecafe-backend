@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { renderToStream } from '@react-pdf/renderer';
 import React from 'react';
 import InvoiceDocument from '@/components/InvoiceDocument';
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     }
     
     // We expect `id` to be the `display_id` or `id` (whichever is shorter)
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     
     let query = supabase.from('orders').select('*, customer_profiles(*)');

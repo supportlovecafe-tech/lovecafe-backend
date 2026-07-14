@@ -15,12 +15,18 @@ export async function GET(req: Request) {
     if (!id && url.search.length > 1) {
       id = url.search.substring(1);
     }
+    
+    // Next.js normalizes valueless query params by adding an '=' at the end (e.g. ?OUTLET-8457 becomes ?OUTLET-8457=)
+    if (id && id.endsWith('=')) {
+      id = id.slice(0, -1);
+    }
 
     if (!id) {
       return new NextResponse('Missing order ID parameter', { status: 400 });
     }
     
     // We expect `id` to be the `display_id` or `id` (whichever is shorter)
+    console.log('[Billing API] ID extracted:', id);
     const supabase = await createAdminClient();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     

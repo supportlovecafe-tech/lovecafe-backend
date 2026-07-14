@@ -4,6 +4,8 @@ import { renderToStream } from '@react-pdf/renderer';
 import React from 'react';
 import InvoiceDocument from '@/components/InvoiceDocument';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);

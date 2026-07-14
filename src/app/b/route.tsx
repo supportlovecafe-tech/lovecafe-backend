@@ -20,11 +20,16 @@ export async function GET(req: Request) {
     
     // We expect `id` to be the `display_id` or `id` (whichever is shorter)
     const supabase = await createClient();
-    const { data: order, error } = await supabase
-      .from('orders')
-      .select('*, customer_profiles(*)')
-      .or(`display_id.eq.${id},id.eq.${id}`)
-      .single();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    
+    let query = supabase.from('orders').select('*, customer_profiles(*)');
+    if (isUuid) {
+      query = query.eq('id', id);
+    } else {
+      query = query.eq('display_id', id);
+    }
+    
+    const { data: order, error } = await query.single();
 
     if (error || !order) {
       console.error('[Billing API] Order not found:', error);

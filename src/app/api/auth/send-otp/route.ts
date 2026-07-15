@@ -15,6 +15,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Phone number is required' }, { status: 400 });
     }
 
+    let sanitizedPhone = phone.replace(/\D/g, '');
+    if (sanitizedPhone.startsWith('91') && sanitizedPhone.length === 12) {
+      sanitizedPhone = sanitizedPhone.substring(2);
+    }
+    if (sanitizedPhone.length !== 10) {
+      return NextResponse.json({ error: 'Invalid phone number. Must be exactly 10 digits.' }, { status: 400 });
+    }
+
     // Generate a random 6-digit OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 

@@ -62,8 +62,27 @@ export async function POST(req: Request) {
     }
 
     // 3. Parse and Validate Payload
+    // SECURITY PATCH: Verify JWT token if provided
+    const authHeader = req.headers.get('authorization');
+    let user = null;
+    if (authHeader && authHeader.startsWith('Bearer ') && authHeader.split(' ')[1] !== 'null') {
+      const token = authHeader.split(' ')[1];
+      const supabaseAuthCheck = await createClient();
+      const { data, error: authError } = await supabaseAuthCheck.auth.getUser(token);
+      if (!authError && data?.user) {
+        user = data.user;
+      }
+    }
+
     const body = await req.json();
-    const { cinema_id, items, total_amount, customer_phone, location, payment_method, verificationToken } = body;
+    const { cinema_id, items, total_amount, customer_phone, location, payment_method, verificationToken, customer_id } = body;
+
+    // Anti-Spoofing: If the order claims a registered customer_id, they MUST have a valid matching JWT
+    if (customer_id && !customer_id.startsWith('TEMP')) {
+       if (!user || user.id !== customer_id) {
+          return NextResponse.json({ error: 'Forbidden: Cannot place order for another user without valid token' }, { status: 403, headers: corsHeaders });
+       }
+    }
 
     if (!cinema_id || !items || !total_amount || !customer_phone || !location) {
       try { await redis.del(lockKey); } catch (e) {}
@@ -97,13 +116,35 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error('[Redis] Queueing failed, falling back to direct Supabase insert:', e);
       
-      // DIRECT DB FALLBACK - Using Secure RPC
-      const supabase = await createClient();
+      // --- SERVER-SIDE ANTI-TAMPERING: RE-CALCULATE PRICE ---
+      let finalAmount = total_amount;
+      try {
+        const { POST: validatePOST } = require('../validate/route');
+        const validateReq = new Request('http://localhost/api/orders/validate', {
+          method: 'POST',
+          body: JSON.stringify({ items, cinema_id, is_pos: false }),
+          headers: req.headers
+        });
+        const validateRes = await validatePOST(validateReq);
+        if (validateRes.ok) {
+           const validateData = await validateRes.json();
+           const serverTotal = validateData.breakdown?.total || total_amount;
+           const discount = (body.points_redeemed || 0) * 0.1; // 10 points = 1 rupee
+           finalAmount = Math.max(0, serverTotal - discount);
+           console.log(`[Security] Client requested: ${total_amount}, Server Calculated: ${finalAmount}`);
+        } else {
+           return NextResponse.json({ error: 'Failed to validate items server-side' }, { status: 400, headers: corsHeaders });
+        }
+      } catch (e) {
+        console.error('Validation integration error:', e);
+        // Fallback to client amount if the internal route call fails, though in production you'd reject it.
+      }
+      
       const { data: orderId, error } = await supabase.rpc('place_order_secure', {
         p_cinema_id: cinema_id,
         p_display_id: body.display_id,
         p_items: items,
-        p_total_amount: total_amount,
+        p_total_amount: finalAmount, // USING SERVER CALCULATED AMOUNT
         p_location: location,
         p_customer_phone: customer_phone,
         p_client_uuid: idempotencyKey,

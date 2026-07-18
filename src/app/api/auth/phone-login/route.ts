@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     // 2. Generate Dummy Email & Secure Password
     // Format phone to standard format, removing plus signs, spaces, etc.
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const proxyEmail = `${cleanPhone}@cinemaeats.in`;
+    const proxyEmail = `${cleanPhone}@lovecafe.in`;
     const randomPassword = crypto.randomBytes(16).toString('hex') + 'A1!'; // Ensure complex password
 
     // 3. Find if user already exists using Admin Auth

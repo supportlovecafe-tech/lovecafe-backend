@@ -353,7 +353,7 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
         {/* Footer */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Thank you for dining at <Text style={{fontWeight: 'bold', color: '#555'}}>Love</Text> ☕</Text>
-          <Text style={styles.footerText}>Need help? <Text style={styles.footerTextBold}>support@lovecafe.org.in</Text></Text>
+          <Text style={styles.footerText}>Need help? <Text style={styles.footerTextBold}>support.lovecafe@gmail.com</Text></Text>
           <Text style={styles.footerText}>© {new Date().getFullYear()} Love. All rights reserved.</Text>
           
           <View style={styles.footerDivider} />

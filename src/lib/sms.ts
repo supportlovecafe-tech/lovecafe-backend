@@ -19,8 +19,8 @@ export async function sendSMS(phone: string, otp: string) {
     sanitizedPhone = '91' + sanitizedPhone.slice(-10);
   }
 
-  // Match the DLT Template: Your LoveCafe OTP is {#var#} . Do not share it with anyone.
-  const messageText = `Your LoveCafe OTP is ${otp} . Do not share it with anyone.`;
+  // Match the DLT Template: Your LoveCafe OTP is {#var#}. Do not share it with anyone.
+  const messageText = `Your LoveCafe OTP is ${otp}. Do not share it with anyone.`;
 
   const payload = {
     username: username,

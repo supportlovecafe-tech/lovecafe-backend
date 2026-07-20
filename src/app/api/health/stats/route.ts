@@ -2,13 +2,23 @@ import { NextResponse } from 'next/server';
 import { redis, keys } from '@/lib/redis';
 import { createAdminClient } from '@/lib/supabase/server';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const secret = searchParams.get('secret');
 
   // Simple security check
   if (!secret || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders });
   }
 
   try {
@@ -59,12 +69,12 @@ export async function GET(req: Request) {
       performance: {
         api_latency_ms: overallLatency
       }
-    });
+    }, { headers: corsHeaders });
 
   } catch (error: any) {
     return NextResponse.json({ 
         status: 'CRITICAL', 
         error: error.message 
-    }, { status: 500 });
+    }, { status: 500, headers: corsHeaders });
   }
 }

@@ -65,10 +65,10 @@ export async function POST(req: Request) {
     // SECURITY PATCH: Verify JWT token if provided
     const authHeader = req.headers.get('authorization');
     let user = null;
+    const supabase = await createClient();
     if (authHeader && authHeader.startsWith('Bearer ') && authHeader.split(' ')[1] !== 'null') {
       const token = authHeader.split(' ')[1];
-      const supabaseAuthCheck = await createClient();
-      const { data, error: authError } = await supabaseAuthCheck.auth.getUser(token);
+      const { data, error: authError } = await supabase.auth.getUser(token);
       if (!authError && data?.user) {
         user = data.user;
       }
@@ -96,8 +96,7 @@ export async function POST(req: Request) {
         try { await redis.del(lockKey); } catch (e) {}
         return NextResponse.json({ error: 'OTP Verification Token is required for Cash on Delivery' }, { status: 400, headers: corsHeaders });
       }
-      const supabaseAuthCheck = await createClient();
-      const { data: session, error: sessionError } = await supabaseAuthCheck
+      const { data: session, error: sessionError } = await supabase
         .from('otp_sessions')
         .select('is_verified')
         .eq('id', verificationToken)

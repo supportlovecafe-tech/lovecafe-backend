@@ -51,8 +51,8 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch current data from DB for validation
-    const foodIds = items.filter(i => !i.is_combo).map(i => i.id);
-    const comboIds = items.filter(i => i.is_combo).map(i => i.id);
+    const foodIds = items.filter((i: any) => !i.is_combo).map((i: any) => i.id || i.food_id);
+    const comboIds = items.filter((i: any) => i.is_combo).map((i: any) => i.id || i.combo_id);
 
     const [{ data: foodItems }, { data: comboItems }] = await Promise.all([
       supabase.from('food_items').select('*').in('id', foodIds),
@@ -98,15 +98,17 @@ export async function POST(req: Request) {
 
     // 3. Validate Price, Availability & Calculate Discounts
     for (const clientItem of items) {
-      const dbItem = dbItemsMap.get(clientItem.id);
+      const clientId = clientItem.id || (clientItem.is_combo ? clientItem.combo_id : clientItem.food_id);
+      const clientName = clientItem.name || clientItem.food_name || clientItem.combo_name || 'Unknown Item';
+      const dbItem = dbItemsMap.get(clientId);
 
       if (!dbItem) {
-        errors.push(`Item not found: ${clientItem.name}`);
+        errors.push(`Item not found: ${clientName}`);
         continue;
       }
 
       if (!dbItem.is_available) {
-        errors.push(`Item unavailable: ${dbItem.name}`);
+        errors.push(`Item unavailable: ${dbItem.name || clientName}`);
       }
 
       let price = dbItem.price;
@@ -115,7 +117,7 @@ export async function POST(req: Request) {
       if (clientItem.offer_id) {
         const selectedOffer = activeOffers.find(o => o.id === clientItem.offer_id);
         if (selectedOffer && selectedOffer.category === 'UNLIMITED') {
-          const customPrice = selectedOffer.itemPricesMap?.get(clientItem.id);
+          const customPrice = selectedOffer.itemPricesMap?.get(clientId);
           const promoPrice = (customPrice !== undefined && customPrice !== null) ? customPrice : selectedOffer.promo_price;
           if (promoPrice !== undefined && promoPrice !== null) {
             price = promoPrice;
@@ -131,7 +133,7 @@ export async function POST(req: Request) {
       let bestDiscount = 0;
       let appliedOffer = null;
 
-      const matchingOffers = activeOffers.filter(o => o.itemIds.has(clientItem.id));
+      const matchingOffers = activeOffers.filter(o => o.itemIds.has(clientId));
       for (const offer of matchingOffers) {
         let currentDiscount = 0;
 
@@ -170,7 +172,7 @@ export async function POST(req: Request) {
           case 'OFFER_OF_THE_FESTIVAL':
           case 'OFFER_OF_THE_FILM': {
             // Can be configured as a percentage discount, a custom promo price, or a flat discount
-            const customPrice = offer.itemPricesMap?.get(clientItem.id);
+            const customPrice = offer.itemPricesMap?.get(clientId);
             const promoPrice = (customPrice !== undefined && customPrice !== null) ? customPrice : offer.promo_price;
 
             if (offer.discount_percentage) {

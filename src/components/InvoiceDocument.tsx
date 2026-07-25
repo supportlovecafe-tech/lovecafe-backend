@@ -5,9 +5,18 @@ import path from 'path';
 // Define styles
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
     backgroundColor: '#ffffff',
     fontFamily: 'Helvetica',
+  },
+  backgroundImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    zIndex: -1,
   },
   header: {
     flexDirection: 'row',
@@ -215,8 +224,10 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        <Image src={path.join(process.cwd(), 'public', 'Love_cafe_invoice_blank.png')} style={styles.backgroundImage} />
         
-        {/* Header with Logo and Invoice Title */}
+        <View style={{ padding: 40, flex: 1, zIndex: 1 }}>
+          {/* Header with Logo and Invoice Title */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             {/* Logo image from public folder */}
@@ -352,9 +363,9 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Thank you for dining at <Text style={{fontWeight: 'bold', color: '#555'}}>Love</Text> ☕</Text>
-          <Text style={styles.footerText}>Need help? <Text style={styles.footerTextBold}>support.lovecafe@gmail.com</Text></Text>
-          <Text style={styles.footerText}>© {new Date().getFullYear()} Love. All rights reserved.</Text>
+          <Text style={styles.footerText}>Thank you for dining at <Text style={{fontWeight: 'bold', color: '#555'}}>Love Cafe</Text></Text>
+          <Text style={styles.footerText}>Need help? <Text style={styles.footerTextBold}>support@lovecafe.org.in</Text></Text>
+          <Text style={styles.footerText}>© {new Date().getFullYear()} Love Cafe. All rights reserved.</Text>
           
           <View style={styles.footerDivider} />
           
@@ -362,6 +373,7 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
           <Text style={styles.footerText}>534/4/E,West Panshila,Kolkata-700112</Text>
           <Text style={styles.footerText}>GST No : 19CZFPS4424J1ZX</Text>
           <Text style={styles.footerText}>FSSAI No : 22824131000626</Text>
+        </View>
         </View>
 
       </Page>

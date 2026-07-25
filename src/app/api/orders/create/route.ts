@@ -75,7 +75,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { cinema_id, items, total_amount, customer_phone, location, payment_method, verificationToken, customer_id } = body;
+    const { cinema_id, items, total_amount, customer_phone, location, payment_method, verificationToken, customer_id, metadata } = body;
+    const actualVerificationToken = verificationToken || metadata?.verificationToken;
 
     // Anti-Spoofing: If the order claims a registered customer_id, they MUST have a valid matching JWT
     if (customer_id && !customer_id.startsWith('TEMP')) {
@@ -92,14 +93,14 @@ export async function POST(req: Request) {
     const p_payment_method = payment_method || 'DEMO_UPI';
 
     if (p_payment_method === 'CASH') {
-      if (!verificationToken) {
+      if (!actualVerificationToken) {
         try { await redis.del(lockKey); } catch (e) {}
         return NextResponse.json({ error: 'OTP Verification Token is required for Cash on Delivery' }, { status: 400, headers: corsHeaders });
       }
       const { data: session, error: sessionError } = await supabase
         .from('otp_sessions')
         .select('is_verified')
-        .eq('id', verificationToken)
+        .eq('id', actualVerificationToken)
         .single();
         
       if (sessionError || !session || !session.is_verified) {

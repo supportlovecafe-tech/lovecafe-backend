@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     let userId = createData?.user?.id;
 
     // If user already exists, update their password instead
-    if (createError && createError.message.includes('already registered')) {
+    if (createError && createError.message.includes('already')) {
       console.log(`[API] User already exists, attempting to update password...`);
       
       const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers();

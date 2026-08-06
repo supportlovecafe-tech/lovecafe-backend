@@ -7,17 +7,17 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function POST(req: NextRequest) {
-  // Add CORS headers for the frontend
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-  };
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+};
 
-  if (req.method === 'OPTIONS') {
-    return new NextResponse(null, { headers: corsHeaders });
-  }
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, { headers: corsHeaders });
+}
+
+export async function POST(req: NextRequest) {
 
   try {
     const { email, password } = await req.json();

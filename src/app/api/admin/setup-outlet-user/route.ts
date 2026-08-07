@@ -44,21 +44,25 @@ export async function POST(req: NextRequest) {
     if (createError && createError.message.includes('already')) {
       console.log(`[API] User already exists, attempting to update password...`);
       
-      const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
-      if (listError) throw listError;
-
-      const existingUser = usersData.users.find(u => u.email === email);
-      
-      if (!existingUser) {
-        throw new Error("User email registered but cannot be found in user list.");
+      // Look up the user ID from our profiles table (much faster/safer than listUsers)
+      const { data: profileData, error: profileErr } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .single();
+        
+      if (profileErr || !profileData) {
+        // Fallback if not in profiles: just try to proceed, but log the error
+        console.error("Could not find existing user in profiles:", profileErr);
+        throw new Error("User exists in auth but missing from profiles. Please contact support to link them.");
       }
 
-      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(profileData.id, {
         password: password
       });
 
       if (updateError) throw updateError;
-      userId = existingUser.id;
+      userId = profileData.id;
     } else if (createError) {
       throw createError;
     }

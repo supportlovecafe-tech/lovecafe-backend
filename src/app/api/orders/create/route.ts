@@ -109,6 +109,26 @@ export async function POST(req: Request) {
       }
     }
 
+    // --- CINEPOINTS SECURITY CHECK ---
+    let enableCinepoints = true;
+    try {
+      const { data: feeSettings } = await supabase
+        .from('global_settings')
+        .select('value')
+        .eq('key', 'platform_fees')
+        .single();
+      if (feeSettings && feeSettings.value && feeSettings.value.enable_cinepoints === false) {
+         enableCinepoints = false;
+      }
+    } catch (err) {
+      console.warn('Could not fetch cinepoints setting:', err);
+    }
+
+    if (!enableCinepoints) {
+       body.points_earned = 0;
+       body.points_redeemed = 0;
+    }
+
     // 4. Processing Phase (FORCE DIRECT DB INSERT FOR LOCAL STABILITY)
     try {
       // Bypassing Redis Queue to avoid connection hangs on local machines

@@ -15,7 +15,7 @@ async function testSMS() {
   const senderId = process.env.JIOCX_SENDER_ID;
   const entityId = process.env.JIOCX_ENTITY_ID;
 
-  const phone = '9999999999';
+  const phone = '8017683428';
   const otp = '123456';
   
   const sanitizedPhone = '91' + phone;

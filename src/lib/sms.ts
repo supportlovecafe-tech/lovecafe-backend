@@ -2,7 +2,7 @@ export async function sendSMS(phone: string, otp: string) {
   const baseUrl = process.env.JIO_BASE_URL;
   const username = process.env.JIO_USERNAME;
   const password = process.env.JIO_PASSWORD;
-  const templateId = process.env.JIOCX_OTP_TEMPLATE_ID;
+  const templateId = process.env.JIOCX_OTP_TEMPLATE_ID || '1277178842080455698';
   const senderId = process.env.JIOCX_SENDER_ID;
   const entityId = process.env.JIOCX_ENTITY_ID;
 
@@ -19,8 +19,8 @@ export async function sendSMS(phone: string, otp: string) {
     sanitizedPhone = '91' + sanitizedPhone.slice(-10);
   }
 
-  // Match the DLT Template: Your LoveCafe OTP is {#var#} . Do not share it with anyone.
-  const messageText = `Your LoveCafe OTP is ${otp} . Do not share it with anyone.`;
+  // Match the DLT Template ID: 1277178842080455698
+  const messageText = `Your LoveCafe a unit of LUV OTP is ${otp}. Do not share it with anyone.`;
 
   const payload = {
     username: username,

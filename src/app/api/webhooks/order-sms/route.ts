@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 const JIO_API_URL = process.env.JIO_BASE_URL || ''; 
 const JIO_SENDER_ID = process.env.JIOCX_SENDER_ID || '';
-const JIO_TEMPLATE_ID = process.env.JIOCX_BILL_TEMPLATE_ID || '';
+const JIO_TEMPLATE_ID = process.env.JIOCX_BILL_TEMPLATE_ID || '1277178780677478296';
 const JIO_ENTITY_ID = process.env.JIOCX_ENTITY_ID || '';
 const JIO_USERNAME = process.env.JIO_USERNAME || '';
 const JIO_PASSWORD = process.env.JIO_PASSWORD || '';
@@ -36,8 +36,8 @@ export async function POST(req: Request) {
     const orderId = order.display_id || 'Unknown';
     const billUrl = `https://admin.lovecafe.org.in/b?${orderId}`;
 
-    // Exactly matching the approved JioCX DLT Template
-    const messageText = `Dear customer, your LOVECAFE Order of Amount: Rs. ${rupees}. ${paise} is confirmed\nBill: ${billUrl} \nThank you & visit again.`;
+    // Exactly matching the approved JioCX DLT Template ID: 1277178780677478296
+    const messageText = `Dear customer, your LOVECAFE Order of Amount: Rs. ${rupees}. ${paise}  is confirmed. Bill: ${billUrl}  Thank you & visit again.`;
 
     console.log(`\n========================================`);
     console.log(`[DLT SMS TRIGGER] To: ${customerPhone}`);

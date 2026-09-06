@@ -57,5 +57,8 @@ export async function sendSMS(phone: string, otp: string) {
     throw new Error(sendData.message || 'Failed to send SMS via JioCX');
   }
 
+  // LOG THE EXACT JIO RESPONSE FOR DEBUGGING DLT SILENT DROPS
+  console.log('[JioCX API Full Response]:', JSON.stringify(sendData));
+
   return sendData;
 }

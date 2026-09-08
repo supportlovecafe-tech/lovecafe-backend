@@ -171,7 +171,7 @@ export async function POST(req: Request) {
         p_payment_method: body.payment_method || 'DEMO_UPI',
         p_points_redeemed: body.points_redeemed || 0,
         p_points_earned: body.points_earned || 0,
-        p_customer_id: body.customer_id,
+        p_customer_id: body.customer_id || user?.id,
         p_customer_profile_id: body.customer_profile_id,
         p_metadata: body.metadata || {}
       });

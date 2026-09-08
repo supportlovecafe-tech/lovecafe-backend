@@ -68,6 +68,7 @@ create table if not exists public.customer_profiles (
   first_name text not null,
   last_name text not null,
   email text,
+  user_id uuid references auth.users(id),
   secret_question text,
   secret_answer text,
   loyalty_points integer default 0,

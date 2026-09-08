@@ -84,7 +84,11 @@ export async function POST(req: Request) {
 
     if (!smsResponse.ok) {
       console.error('Failed to send SMS via Jio:', smsResultText);
-      return NextResponse.json({ error: 'Failed to send SMS through provider' }, { status: 500 });
+      return NextResponse.json({ 
+        success: false, 
+        message: 'JioCX Provider 403/Error (IP Whitelist Pending)', 
+        jioResponse: smsResultText 
+      }, { status: 200 });
     }
 
     return NextResponse.json({ 

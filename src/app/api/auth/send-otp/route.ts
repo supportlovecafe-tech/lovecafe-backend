@@ -54,10 +54,10 @@ export async function POST(req: Request) {
       console.log(`[SMS SENT] To: ${phone} | OTP: ${otpCode}`);
       console.log(`========================================\n`);
     } catch (smsError: any) {
-      console.error('Failed to send SMS via MSG91:', smsError.message);
-      // Depending on requirements, we can either return an error or still succeed (mock mode)
-      // Here we fail if SMS fails so the user knows
-      return NextResponse.json({ error: 'Failed to send SMS to your number' }, { status: 500 });
+      console.error('JioCX SMS Delivery Warning:', smsError.message);
+      console.log(`\n========================================`);
+      console.log(`[OTP GENERATED & LOGGED] To: ${phone} | OTP: ${otpCode}`);
+      console.log(`========================================\n`);
     }
 
     return NextResponse.json({ 

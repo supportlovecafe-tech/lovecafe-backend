@@ -15,12 +15,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Phone and OTP code are required' }, { status: 400 });
     }
 
-    // 1. Verify the OTP (similar to verify-otp, but we check if it matches the phone)
+    // Normalize phone number to exactly 10 digits
+    let sanitizedPhone = phone.replace(/\D/g, '');
+    if (sanitizedPhone.startsWith('91') && sanitizedPhone.length === 12) {
+      sanitizedPhone = sanitizedPhone.substring(2);
+    }
+    if (sanitizedPhone.length !== 10) {
+      return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 });
+    }
+
+    // 1. Verify the OTP (similar to verify-otp, but we check if it matches the sanitized phone)
     // Find the latest valid OTP session for this phone
     const { data: session, error: sessionError } = await supabaseAdmin
       .from('otp_sessions')
       .select('*')
-      .eq('phone', phone)
+      .eq('phone', sanitizedPhone)
       .eq('is_verified', false)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -44,10 +53,8 @@ export async function POST(req: Request) {
       .update({ is_verified: true })
       .eq('id', session.id);
 
-    // 2. Generate Dummy Email & Secure Password
-    // Format phone to standard format, removing plus signs, spaces, etc.
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const proxyEmail = `${cleanPhone}@lovecafe.in`;
+    // 2. Generate Dummy Email & Secure Password using the strict 10-digit phone
+    const proxyEmail = `${sanitizedPhone}@lovecafe.in`;
     const randomPassword = crypto.randomBytes(16).toString('hex') + 'A1!'; // Ensure complex password
 
     // 3. Find if user already exists using Admin Auth
@@ -83,7 +90,7 @@ export async function POST(req: Request) {
            first_name: firstName || '',
            last_name: lastName || '',
            full_name: `${firstName || ''} ${lastName || ''}`.trim(),
-           phone: phone,
+           phone: sanitizedPhone,
            role: 'CUSTOMER'
         }
       });

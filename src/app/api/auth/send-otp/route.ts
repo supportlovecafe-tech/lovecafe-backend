@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const { data, error } = await supabase
       .from('otp_sessions')
       .insert({
-        phone,
+        phone: sanitizedPhone,
         otp_code: otpCode,
         expires_at: expiresAt.toISOString(),
         is_verified: false,

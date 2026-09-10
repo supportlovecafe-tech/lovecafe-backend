@@ -129,13 +129,8 @@ export async function POST(req: Request) {
        body.points_redeemed = 0;
     }
 
-    // 4. Processing Phase (FORCE DIRECT DB INSERT FOR LOCAL STABILITY)
-    try {
-      // Bypassing Redis Queue to avoid connection hangs on local machines
-      throw new Error('Local Stability Mode: Bypassing Redis Queue');
-    } catch (e) {
-      console.error('[Redis] Queueing failed, falling back to direct Supabase insert:', e);
-      
+    // 4. Processing Phase — Direct Supabase Insert
+    {
       // --- SERVER-SIDE ANTI-TAMPERING: RE-CALCULATE PRICE ---
       let finalAmount = total_amount;
       try {

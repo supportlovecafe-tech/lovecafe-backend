@@ -47,9 +47,50 @@ export async function GET(req: Request) {
     // Parse items if they are stored as JSON
     const items = Array.isArray(order.items) ? order.items : JSON.parse(order.items as string || '[]');
 
+    // Enrich items with latest DB names and apply_gst
+    const foodIds = items.map((i: any) => i.food_id || i.id).filter(Boolean);
+    if (foodIds.length > 0) {
+      try {
+        const { data: dbFoods } = await supabase
+          .from('food_items')
+          .select('id, name, apply_gst')
+          .in('id', foodIds);
+
+        if (dbFoods && dbFoods.length > 0) {
+          const foodMap = new Map(dbFoods.map((f: any) => [f.id, f]));
+          items.forEach((item: any) => {
+            const dbFood = foodMap.get(item.food_id || item.id);
+            if (dbFood) {
+              if (!item.food_name && !item.name) item.food_name = dbFood.name;
+              if (item.apply_gst === undefined && item.applyGst === undefined) {
+                item.apply_gst = dbFood.apply_gst;
+              }
+            }
+          });
+        }
+      } catch (enrichErr) {
+        console.warn('[Billing API] Could not enrich items from food_items table:', enrichErr);
+      }
+    }
+
+    // Check global enable_gst setting
+    let enableGst = true;
+    try {
+      const { data: feeSettings } = await supabase
+        .from('global_settings')
+        .select('value')
+        .eq('key', 'platform_fees')
+        .single();
+      if (feeSettings?.value) {
+        const val = feeSettings.value as any;
+        if (val.enable_gst !== undefined) enableGst = Boolean(val.enable_gst);
+        else if (val.enable_cgst_sgst !== undefined) enableGst = Boolean(val.enable_cgst_sgst);
+      }
+    } catch (e) {}
+
     // Render the PDF to a stream
     const pdfStream = await renderToStream(
-      <InvoiceDocument order={order} items={items} customer={order.customer_profiles} />
+      <InvoiceDocument order={order} items={items} customer={order.customer_profiles} enableGst={enableGst} />
     );
 
     // Convert React PDF stream to Web Response stream

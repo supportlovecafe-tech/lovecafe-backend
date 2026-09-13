@@ -187,7 +187,17 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function InvoiceDocument({ order, items, customer }: { order: any, items: any[], customer?: any }) {
+export default function InvoiceDocument({ 
+  order, 
+  items, 
+  customer, 
+  enableGst = true 
+}: { 
+  order: any, 
+  items: any[], 
+  customer?: any, 
+  enableGst?: boolean 
+}) {
   // Format dates and currency
   const dateStr = order.timestamp 
     ? new Date(order.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -215,34 +225,37 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
   if (items && items.length > 0) {
     subtotal = items.reduce((sum, item) => sum + ((item.food_price || item.price || 0) * (item.quantity || 1)), 0);
     taxableSubtotal = items.reduce((sum, item) => {
-      if (item.apply_gst === false || item.applyGst === false) {
+      // Check if product is non-GST / exempted
+      const isExempt = (item.apply_gst === false || item.applyGst === false);
+      if (isExempt || !enableGst) {
         return sum;
       }
       return sum + ((item.food_price || item.price || 0) * (item.quantity || 1));
     }, 0);
   } else {
     subtotal = grandTotal;
-    taxableSubtotal = grandTotal;
+    taxableSubtotal = enableGst ? grandTotal : 0;
   }
 
-  // Calculate taxes: respect metadata first if present, otherwise check taxableSubtotal or if total matches subtotal
+  // Calculate taxes:
+  // 1. If global GST is disabled or taxableSubtotal is 0 (all items are non-GST), taxes MUST BE ZERO!
+  // 2. If metadata explicitly recorded cgst/sgst, respect the order's exact metadata (e.g. 0).
+  // 3. Otherwise calculate 2.5% only on the taxableSubtotal.
   let cgst = 0;
   let sgst = 0;
 
-  if (metadata.cgst !== undefined && metadata.cgst !== null) {
+  if (!enableGst || taxableSubtotal <= 0) {
+    cgst = 0;
+    sgst = 0;
+  } else if (metadata.cgst !== undefined && metadata.cgst !== null) {
     cgst = Number(metadata.cgst) || 0;
+    sgst = Number(metadata.sgst) || 0;
   } else if (Math.abs(grandTotal - subtotal) < 0.01) {
     // Total equals subtotal, meaning no taxes or charges were added
     cgst = 0;
-  } else {
-    cgst = Math.round(taxableSubtotal * 0.025 * 100) / 100;
-  }
-
-  if (metadata.sgst !== undefined && metadata.sgst !== null) {
-    sgst = Number(metadata.sgst) || 0;
-  } else if (Math.abs(grandTotal - subtotal) < 0.01) {
     sgst = 0;
   } else {
+    cgst = Math.round(taxableSubtotal * 0.025 * 100) / 100;
     sgst = Math.round(taxableSubtotal * 0.025 * 100) / 100;
   }
   
@@ -325,11 +338,12 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
             const qty = item.quantity || 1;
             const price = item.food_price || item.price || 0;
             const total = item.net_total || item.total || (price * qty);
+            const itemName = item.food_name || item.name || item.combo_name || 'Item';
 
             return (
               <View style={styles.tableRow} key={index}>
                 <View style={[styles.tableCol, styles.colItem]}>
-                  <Text style={styles.tableCell}>{item.name}</Text>
+                  <Text style={styles.tableCell}>{itemName}</Text>
                 </View>
                 <View style={[styles.tableCol, styles.colQty]}>
                   <Text style={styles.tableCell}>{qty}</Text>

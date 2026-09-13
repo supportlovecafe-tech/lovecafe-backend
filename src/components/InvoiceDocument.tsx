@@ -199,26 +199,64 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
   const customerName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : (order.customer_phone || 'Walk-in Customer');
   const customerEmail = customer?.email || '';
 
-  // Calculate Subtotal and Grand Total
-  const grandTotal = order.total_amount || 0;
-  
-  let subtotal = 0;
-  if (items && items.length > 0) {
-    subtotal = items.reduce((sum, item) => sum + ((item.food_price || item.price || 0) * (item.quantity || 1)), 0);
-  } else {
-    subtotal = grandTotal;
+  // Safely parse order metadata
+  let metadata: any = {};
+  if (typeof order.metadata === 'string') {
+    try { metadata = JSON.parse(order.metadata); } catch (e) {}
+  } else if (order.metadata && typeof order.metadata === 'object') {
+    metadata = order.metadata;
   }
 
-  // Calculate taxes
-  const cgst = subtotal * 0.025;
-  const sgst = subtotal * 0.025;
+  // Calculate Subtotal and Grand Total
+  const grandTotal = Number(order.total_amount) || 0;
+  
+  let subtotal = 0;
+  let taxableSubtotal = 0;
+  if (items && items.length > 0) {
+    subtotal = items.reduce((sum, item) => sum + ((item.food_price || item.price || 0) * (item.quantity || 1)), 0);
+    taxableSubtotal = items.reduce((sum, item) => {
+      if (item.apply_gst === false || item.applyGst === false) {
+        return sum;
+      }
+      return sum + ((item.food_price || item.price || 0) * (item.quantity || 1));
+    }, 0);
+  } else {
+    subtotal = grandTotal;
+    taxableSubtotal = grandTotal;
+  }
+
+  // Calculate taxes: respect metadata first if present, otherwise check taxableSubtotal or if total matches subtotal
+  let cgst = 0;
+  let sgst = 0;
+
+  if (metadata.cgst !== undefined && metadata.cgst !== null) {
+    cgst = Number(metadata.cgst) || 0;
+  } else if (Math.abs(grandTotal - subtotal) < 0.01) {
+    // Total equals subtotal, meaning no taxes or charges were added
+    cgst = 0;
+  } else {
+    cgst = Math.round(taxableSubtotal * 0.025 * 100) / 100;
+  }
+
+  if (metadata.sgst !== undefined && metadata.sgst !== null) {
+    sgst = Number(metadata.sgst) || 0;
+  } else if (Math.abs(grandTotal - subtotal) < 0.01) {
+    sgst = 0;
+  } else {
+    sgst = Math.round(taxableSubtotal * 0.025 * 100) / 100;
+  }
   
   // Determine if it's an Outlet Order (Outlet orders hide platform fees)
   const isOutlet = order.location && order.location.toUpperCase().includes('OUTLET');
 
   // Calculate remaining platform charges/fees to make the math add up perfectly to grandTotal
-  let platformCharges = grandTotal - subtotal - cgst - sgst;
-  if (platformCharges < 0) platformCharges = 0; // Prevent negative platform charges if subtotal equals grandTotal
+  let platformCharges = 0;
+  if (metadata.platform_charges !== undefined && metadata.platform_charges !== null) {
+    platformCharges = Number(metadata.platform_charges) || 0;
+  } else {
+    platformCharges = grandTotal - subtotal - cgst - sgst;
+    if (platformCharges < 0) platformCharges = 0;
+  }
 
   return (
     <Document>
@@ -317,24 +355,28 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
           </View>
           
           {/* CGST Row */}
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryLabelCol}>
-              <Text style={{ fontSize: 10, color: '#555' }}>CGST (2.5%)</Text>
+          {cgst > 0 ? (
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryLabelCol}>
+                <Text style={{ fontSize: 10, color: '#555' }}>CGST (2.5%)</Text>
+              </View>
+              <View style={styles.summaryValueCol}>
+                <Text style={{ fontSize: 10, color: '#555' }}>{formatCurrency(cgst)}</Text>
+              </View>
             </View>
-            <View style={styles.summaryValueCol}>
-              <Text style={{ fontSize: 10, color: '#555' }}>{formatCurrency(cgst)}</Text>
-            </View>
-          </View>
+          ) : null}
 
           {/* SGST Row */}
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryLabelCol}>
-              <Text style={{ fontSize: 10, color: '#555' }}>SGST (2.5%)</Text>
+          {sgst > 0 ? (
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryLabelCol}>
+                <Text style={{ fontSize: 10, color: '#555' }}>SGST (2.5%)</Text>
+              </View>
+              <View style={styles.summaryValueCol}>
+                <Text style={{ fontSize: 10, color: '#555' }}>{formatCurrency(sgst)}</Text>
+              </View>
             </View>
-            <View style={styles.summaryValueCol}>
-              <Text style={{ fontSize: 10, color: '#555' }}>{formatCurrency(sgst)}</Text>
-            </View>
-          </View>
+          ) : null}
 
           {/* Platform Charges Row */}
           {!isOutlet && platformCharges > 0.01 && (

@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     let onlineFeePercent = 1.0;
     let posFeePercent = 0.0;
     let applicableCategories = ['ALL'];
+    let enableGst = true;
 
     try {
       const { data: feeSettingsRow } = await supabase
@@ -41,6 +42,8 @@ export async function POST(req: Request) {
         if (val.online_fee_percent !== undefined) onlineFeePercent = Number(val.online_fee_percent);
         if (val.pos_fee_percent !== undefined) posFeePercent = Number(val.pos_fee_percent);
         if (val.applicable_categories) applicableCategories = val.applicable_categories;
+        if (val.enable_gst !== undefined) enableGst = Boolean(val.enable_gst);
+        else if (val.enable_cgst_sgst !== undefined) enableGst = Boolean(val.enable_cgst_sgst);
       }
     } catch (dbErr) {
       console.warn('[Validation API] Could not load global platform fee settings, using defaults:', dbErr);
@@ -222,8 +225,8 @@ export async function POST(req: Request) {
     }
 
     // 4. Centralized Tax Calculations on Net Subtotal
-    const cgst = Math.round(netTaxableSubtotal * 0.025 * 100) / 100;
-    const sgst = Math.round(netTaxableSubtotal * 0.025 * 100) / 100;
+    const cgst = enableGst ? Math.round(netTaxableSubtotal * 0.025 * 100) / 100 : 0;
+    const sgst = enableGst ? Math.round(netTaxableSubtotal * 0.025 * 100) / 100 : 0;
 
     const isPOS = is_pos === true;
     const feePercent = isPOS ? posFeePercent : onlineFeePercent;

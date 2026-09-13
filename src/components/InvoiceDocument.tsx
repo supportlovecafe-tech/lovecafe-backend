@@ -370,7 +370,7 @@ export default function InvoiceDocument({ order, items, customer }: { order: any
           <Text style={styles.companyName}>LOVE</Text>
           <Text style={styles.footerText}>534/4/E,West Panshila,Kolkata-700112</Text>
           <Text style={styles.footerText}>GST No : 19CZFPS4424J1ZX</Text>
-          <Text style={styles.footerText}>FSSAI No : 22824131000626</Text>
+
         </View>
 
       </Page>

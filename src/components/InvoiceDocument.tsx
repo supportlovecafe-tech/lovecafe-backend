@@ -423,7 +423,7 @@ export default function InvoiceDocument({
           
           <View style={styles.footerDivider} />
           
-          <Text style={styles.companyName}>LOVE</Text>
+          <Text style={styles.companyName}>LUV</Text>
           <Text style={styles.footerText}>534/4/E,West Panshila,Kolkata-700112</Text>
           <Text style={styles.footerText}>GST No : 19CZFPS4424J1ZX</Text>
 

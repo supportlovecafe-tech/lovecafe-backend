@@ -75,8 +75,9 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { cinema_id, items, total_amount, customer_phone, location, payment_method, verificationToken, customer_id, metadata } = body;
+    const { cinema_id, items, total_amount, customer_phone, location, payment_method, verificationToken, customer_id, metadata, staff_id } = body;
     const actualVerificationToken = verificationToken || metadata?.verificationToken;
+    const actualStaffId = staff_id || metadata?.staff_id || null;
 
     // Anti-Spoofing: If the order claims a registered customer_id, they MUST have a valid matching JWT
     if (customer_id && !customer_id.startsWith('TEMP')) {
@@ -168,7 +169,8 @@ export async function POST(req: Request) {
         p_points_earned: body.points_earned || 0,
         p_customer_id: body.customer_id || user?.id,
         p_customer_profile_id: body.customer_profile_id,
-        p_metadata: body.metadata || {}
+        p_metadata: body.metadata || {},
+        p_staff_id: actualStaffId
       });
 
       if (error) {

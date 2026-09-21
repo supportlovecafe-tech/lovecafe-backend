@@ -92,8 +92,10 @@ export async function GET(req: Request) {
             p_points_earned: dbData.points_earned || 0,
             p_customer_id: dbData.customer_id,
             p_customer_profile_id: dbData.customer_profile_id,
-            p_metadata: dbData.metadata || {},
-            p_staff_id: dbData.staff_id || dbData.metadata?.staff_id || null
+            p_metadata: {
+              ...(dbData.metadata || {}),
+              ...((dbData.staff_id || dbData.metadata?.staff_id) ? { staff_id: dbData.staff_id || dbData.metadata?.staff_id } : {})
+            }
           });
 
           if (error) throw error;

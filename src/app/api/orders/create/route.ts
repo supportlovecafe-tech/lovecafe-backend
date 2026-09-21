@@ -138,7 +138,7 @@ export async function POST(req: Request) {
         const { POST: validatePOST } = require('../validate/route');
         const validateReq = new Request('http://localhost/api/orders/validate', {
           method: 'POST',
-          body: JSON.stringify({ items, cinema_id, is_pos: false }),
+          body: JSON.stringify({ items, cinema_id, is_pos: Boolean(body.is_pos) }),
           headers: req.headers
         });
         const validateRes = await validatePOST(validateReq);
@@ -156,6 +156,11 @@ export async function POST(req: Request) {
         // Fallback to client amount if the internal route call fails, though in production you'd reject it.
       }
       
+      const orderMetadata = {
+        ...(body.metadata || {}),
+        ...(actualStaffId ? { staff_id: actualStaffId } : {})
+      };
+
       const { data: orderId, error } = await supabase.rpc('place_order_secure', {
         p_cinema_id: cinema_id,
         p_display_id: body.display_id,
@@ -169,8 +174,7 @@ export async function POST(req: Request) {
         p_points_earned: body.points_earned || 0,
         p_customer_id: body.customer_id || user?.id,
         p_customer_profile_id: body.customer_profile_id,
-        p_metadata: body.metadata || {},
-        p_staff_id: actualStaffId
+        p_metadata: orderMetadata
       });
 
       if (error) {

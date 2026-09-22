@@ -6,7 +6,17 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholde
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder'
 
 export async function createClient() {
-  const cookieStore = await cookies()
+  let cookieStore: any = null;
+  try {
+    cookieStore = await cookies();
+  } catch (e) {
+    // Called outside Next.js request context (e.g. internal function call or test)
+  }
+
+  if (!cookieStore) {
+    const { createClient: createBaseClient } = require('@supabase/supabase-js');
+    return createBaseClient(supabaseUrl, supabaseAnonKey);
+  }
 
   return createServerClient(
     supabaseUrl,
@@ -32,8 +42,18 @@ export async function createClient() {
 
 // Admin client for bypass / internal logic
 export async function createAdminClient() {
-  const cookieStore = await cookies()
-  
+  let cookieStore: any = null;
+  try {
+    cookieStore = await cookies();
+  } catch (e) {
+    // Called outside Next.js request context
+  }
+
+  if (!cookieStore) {
+    const { createClient: createBaseClient } = require('@supabase/supabase-js');
+    return createBaseClient(supabaseUrl, serviceRoleKey);
+  }
+
   return createServerClient(
     supabaseUrl,
     serviceRoleKey,
@@ -42,9 +62,7 @@ export async function createAdminClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
-          // Admin client usually doesn't need to set cookies back to the user
-        },
+        setAll() {},
       },
     }
   )

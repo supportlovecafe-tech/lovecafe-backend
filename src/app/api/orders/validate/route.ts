@@ -66,6 +66,38 @@ export async function POST(req: Request) {
     (foodItems || []).forEach(i => dbItemsMap.set(i.id, i));
     (comboItems || []).forEach(i => dbItemsMap.set(i.id, i));
 
+    // 1b. Fetch Addon Options from DB for accurate pricing and availability
+    const addonOptionIds: string[] = [];
+    for (const clientItem of items) {
+      if (clientItem.addons && Array.isArray(clientItem.addons)) {
+        for (const addonGroup of clientItem.addons) {
+          if (!addonGroup) continue;
+          if (Array.isArray(addonGroup.selectedOptions)) {
+            for (const opt of addonGroup.selectedOptions) {
+              if (opt?.id) addonOptionIds.push(opt.id);
+            }
+          } else if (Array.isArray(addonGroup.options)) {
+            for (const opt of addonGroup.options) {
+              if (opt?.id) addonOptionIds.push(opt.id);
+            }
+          } else if (addonGroup.id) {
+            addonOptionIds.push(addonGroup.id);
+          }
+        }
+      }
+    }
+
+    const dbAddonOptionsMap = new Map<string, any>();
+    if (addonOptionIds.length > 0) {
+      const { data: dbOptions } = await supabase
+        .from('addon_options')
+        .select('id, name, price, is_available')
+        .in('id', addonOptionIds);
+      if (dbOptions) {
+        dbOptions.forEach(opt => dbAddonOptionsMap.set(opt.id, opt));
+      }
+    }
+
     // 2. Fetch active offers for this cinema outlet
     let activeOffers: any[] = [];
     if (cinema_id) {
@@ -114,7 +146,49 @@ export async function POST(req: Request) {
         errors.push(`Item unavailable: ${dbItem.name || clientName}`);
       }
 
-      let price = dbItem.price;
+      // Calculate add-on cost per unit for this item
+      let addonsUnitPrice = 0;
+      if (clientItem.addons && Array.isArray(clientItem.addons)) {
+        for (const addonGroup of clientItem.addons) {
+          if (!addonGroup) continue;
+          if (Array.isArray(addonGroup.selectedOptions)) {
+            for (const opt of addonGroup.selectedOptions) {
+              const dbOpt = opt.id ? dbAddonOptionsMap.get(opt.id) : null;
+              if (dbOpt) {
+                if (dbOpt.is_available === false) {
+                  errors.push(`Add-on option unavailable: ${dbOpt.name}`);
+                }
+                addonsUnitPrice += Number(dbOpt.price) || 0;
+              } else {
+                addonsUnitPrice += Number(opt.price) || 0;
+              }
+            }
+          } else if (Array.isArray(addonGroup.options)) {
+            for (const opt of addonGroup.options) {
+              const dbOpt = opt.id ? dbAddonOptionsMap.get(opt.id) : null;
+              if (dbOpt) {
+                if (dbOpt.is_available === false) {
+                  errors.push(`Add-on option unavailable: ${dbOpt.name}`);
+                }
+                addonsUnitPrice += Number(dbOpt.price) || 0;
+              } else {
+                addonsUnitPrice += Number(opt.price) || 0;
+              }
+            }
+          } else if (addonGroup.price !== undefined) {
+            const dbOpt = addonGroup.id ? dbAddonOptionsMap.get(addonGroup.id) : null;
+            if (dbOpt) {
+              addonsUnitPrice += Number(dbOpt.price) || 0;
+            } else {
+              addonsUnitPrice += Number(addonGroup.price) || 0;
+            }
+          } else if (addonGroup.extraPrice !== undefined) {
+            addonsUnitPrice += Number(addonGroup.extraPrice) || 0;
+          }
+        }
+      }
+
+      let basePrice = dbItem.price;
 
       // PRE-PROCESSING: If this item was explicitly added under an UNLIMITED offer, override its base price.
       if (clientItem.offer_id) {
@@ -123,13 +197,14 @@ export async function POST(req: Request) {
           const customPrice = selectedOffer.itemPricesMap?.get(clientId);
           const promoPrice = (customPrice !== undefined && customPrice !== null) ? customPrice : selectedOffer.promo_price;
           if (promoPrice !== undefined && promoPrice !== null) {
-            price = promoPrice;
+            basePrice = promoPrice;
           }
         }
       }
 
+      const unitPrice = basePrice + addonsUnitPrice;
       const quantity = clientItem.quantity;
-      const itemGrossTotal = price * quantity;
+      const itemGrossTotal = unitPrice * quantity;
       grossSubtotal += itemGrossTotal;
 
       // Scan and calculate the best applicable offer for this product
@@ -144,19 +219,19 @@ export async function POST(req: Request) {
           case 'BUY_1_GET_1': {
             const block = 2; // Buy 1 Get 1 = group of 2
             const freeCount = Math.floor(quantity / block) * 1;
-            currentDiscount = freeCount * price;
+            currentDiscount = freeCount * basePrice;
             break;
           }
           case 'BUY_1_GET_2': {
             const block = 3; // Buy 1 Get 2 = group of 3
             const freeCount = Math.floor(quantity / block) * 2;
-            currentDiscount = freeCount * price;
+            currentDiscount = freeCount * basePrice;
             break;
           }
           case 'BUY_2_GET_1': {
             const block = 3; // Buy 2 Get 1 = group of 3
             const freeCount = Math.floor(quantity / block) * 1;
-            currentDiscount = freeCount * price;
+            currentDiscount = freeCount * basePrice;
             break;
           }
           case 'UNLIMITED': {
@@ -181,7 +256,7 @@ export async function POST(req: Request) {
             if (offer.discount_percentage) {
               currentDiscount = itemGrossTotal * (offer.discount_percentage / 100);
             } else if (promoPrice !== null && promoPrice !== undefined) {
-              currentDiscount = Math.max(0, price - promoPrice) * quantity;
+              currentDiscount = Math.max(0, basePrice - promoPrice) * quantity;
             } else if (offer.flat_discount_amount) {
               currentDiscount = Math.min(offer.flat_discount_amount, itemGrossTotal);
             }
@@ -212,7 +287,9 @@ export async function POST(req: Request) {
 
       validatedItems.push({
         ...clientItem,
-        food_price: price, // Enforce server-side price
+        food_price: unitPrice, // Enforce server-side price including addons
+        base_price: basePrice,
+        addons_price: addonsUnitPrice,
         total: itemGrossTotal,
         net_total: itemNetTotal,
         discount: bestDiscount,

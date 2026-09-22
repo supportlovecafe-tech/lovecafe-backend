@@ -19,7 +19,7 @@ export async function GET(req: Request) {
 
     const combos = await getCachedCombos(cinemaId);
 
-    const mappedCombos = (combos || []).map(c => ({
+    const mappedCombos = (combos || []).map((c: any) => ({
       ...c,
       is_combo: true,
       category: '🔥 Combos'

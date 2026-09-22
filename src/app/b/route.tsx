@@ -57,9 +57,9 @@ export async function GET(req: Request) {
           .in('id', foodIds);
 
         if (dbFoods && dbFoods.length > 0) {
-          const foodMap = new Map(dbFoods.map((f: any) => [f.id, f]));
+          const foodMap = new Map<string, any>(dbFoods.map((f: any) => [f.id, f]));
           items.forEach((item: any) => {
-            const dbFood = foodMap.get(item.food_id || item.id);
+            const dbFood: any = foodMap.get(item.food_id || item.id);
             if (dbFood) {
               if (!item.food_name && !item.name) item.food_name = dbFood.name;
               if (item.apply_gst === undefined && item.applyGst === undefined) {

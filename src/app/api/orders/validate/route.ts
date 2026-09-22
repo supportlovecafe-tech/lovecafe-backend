@@ -63,8 +63,8 @@ export async function POST(req: Request) {
     ]);
 
     const dbItemsMap = new Map<string, any>();
-    (foodItems || []).forEach(i => dbItemsMap.set(i.id, i));
-    (comboItems || []).forEach(i => dbItemsMap.set(i.id, i));
+    (foodItems || []).forEach((i: any) => dbItemsMap.set(i.id, i));
+    (comboItems || []).forEach((i: any) => dbItemsMap.set(i.id, i));
 
     // 1b. Fetch Addon Options from DB for accurate pricing and availability
     const addonOptionIds: string[] = [];
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
         .select('id, name, price, is_available')
         .in('id', addonOptionIds);
       if (dbOptions) {
-        dbOptions.forEach(opt => dbAddonOptionsMap.set(opt.id, opt));
+        dbOptions.forEach((opt: any) => dbAddonOptionsMap.set(opt.id, opt));
       }
     }
 
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         .eq('is_active', true);
       
       if (!offersErr && offers) {
-        activeOffers = offers.map(o => {
+        activeOffers = offers.map((o: any) => {
           const itemPricesMap = new Map<string, number | null>();
           o.offer_items?.forEach((oi: any) => {
             if (oi.custom_price !== undefined && oi.custom_price !== null) {

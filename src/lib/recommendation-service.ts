@@ -33,10 +33,10 @@ export async function getCachedRecommendations(cinemaId: string, userId: string,
 
       // Aggregation logic (simplified version of Flutter logic)
       const aggregates: Record<string, any> = {};
-      (rawOrders || []).forEach((order, idx) => {
+      (rawOrders || []).forEach((order: any, idx: number) => {
         const weight = 30 - idx;
         const items = order.items as any[] || [];
-        items.forEach(item => {
+        items.forEach((item: any) => {
            if (item.food_id && !item.is_combo) {
              const id = item.food_id;
              if (!aggregates[id]) {

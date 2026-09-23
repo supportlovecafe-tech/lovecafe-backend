@@ -95,6 +95,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid order data' }, { status: 400, headers: corsHeaders });
     }
 
+    // Validate cinema active status
+    const { data: cinemaRecord } = await supabase
+      .from('cinemas')
+      .select('name, is_active, status')
+      .eq('id', cinema_id)
+      .single();
+
+    if (cinemaRecord && (cinemaRecord.is_active === false || cinemaRecord.status === 'INACTIVE')) {
+      try { await redis.del(lockKey); } catch (e) {}
+      return NextResponse.json(
+        { error: `This outlet (${cinemaRecord.name || 'Current Outlet'}) is currently in service mode and not accepting orders.` },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     const p_payment_method = payment_method || 'DEMO_UPI';
 
     if (p_payment_method === 'CASH') {

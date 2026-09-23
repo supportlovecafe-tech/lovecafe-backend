@@ -75,7 +75,11 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { cinema_id, items, total_amount, customer_phone, location, payment_method, verificationToken, customer_id, metadata, staff_id } = body;
+    const { 
+      cinema_id, items, total_amount, customer_phone, location, 
+      payment_method, verificationToken, customer_id, metadata, staff_id,
+      collected_cash, return_cash 
+    } = body;
     const actualVerificationToken = verificationToken || metadata?.verificationToken;
     const actualStaffId = staff_id || metadata?.staff_id || null;
 
@@ -149,16 +153,22 @@ export async function POST(req: Request) {
            finalAmount = Math.max(0, serverTotal - discount);
            console.log(`[Security] Client requested: ${total_amount}, Server Calculated: ${finalAmount}`);
         } else {
-           return NextResponse.json({ error: 'Failed to validate items server-side' }, { status: 400, headers: corsHeaders });
+           const errData = await validateRes.json().catch(() => ({}));
+           return NextResponse.json({ error: errData.error || 'Failed to validate items server-side' }, { status: 400, headers: corsHeaders });
         }
       } catch (e) {
         console.error('Validation integration error:', e);
         // Fallback to client amount if the internal route call fails, though in production you'd reject it.
       }
       
+      const finalCollectedCash = Number(collected_cash !== undefined ? collected_cash : (metadata?.collected_cash ?? (metadata?.split_collected_cash ?? 0)));
+      const finalReturnCash = Number(return_cash !== undefined ? return_cash : (metadata?.return_cash ?? (metadata?.split_return_cash ?? 0)));
+
       const orderMetadata = {
         ...(body.metadata || {}),
-        ...(actualStaffId ? { staff_id: actualStaffId } : {})
+        ...(actualStaffId ? { staff_id: actualStaffId } : {}),
+        collected_cash: finalCollectedCash,
+        return_cash: finalReturnCash
       };
 
       const { data: orderId, error } = await supabase.rpc('place_order_secure', {
@@ -182,6 +192,21 @@ export async function POST(req: Request) {
           return NextResponse.json({ success: true, message: 'Order already exists', id: idempotencyKey }, { status: 200, headers: corsHeaders });
         }
         throw error;
+      }
+
+      // Persist cash tracking columns directly to orders table for instant query availability
+      if (orderId && (finalCollectedCash > 0 || finalReturnCash > 0)) {
+        try {
+          await supabase
+            .from('orders')
+            .update({
+              collected_cash: finalCollectedCash,
+              return_cash: finalReturnCash
+            })
+            .eq('id', orderId);
+        } catch (updateErr) {
+          console.warn('[Orders Create] Failed to update cash columns on order:', updateErr);
+        }
       }
 
       return NextResponse.json({ success: true, message: 'Order created (Secure Fallback)', id: orderId }, { status: 201, headers: corsHeaders });

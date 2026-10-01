@@ -204,7 +204,11 @@ export async function POST(req: Request) {
 
       if (error) {
         if (error.code === '23505') {
-          return NextResponse.json({ success: true, message: 'Order already exists', id: idempotencyKey }, { status: 200, headers: corsHeaders });
+          if (error.message && error.message.includes('client_uuid')) {
+            return NextResponse.json({ success: true, message: 'Order already exists', id: idempotencyKey }, { status: 200, headers: corsHeaders });
+          } else {
+            return NextResponse.json({ error: 'Order ID collision. Please try again.' }, { status: 409, headers: corsHeaders });
+          }
         }
         throw error;
       }

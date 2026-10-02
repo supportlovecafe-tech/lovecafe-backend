@@ -344,6 +344,15 @@ export default function InvoiceDocument({
               <View style={styles.tableRow} key={index}>
                 <View style={[styles.tableCol, styles.colItem]}>
                   <Text style={styles.tableCell}>{itemName}</Text>
+                  {item.addons && item.addons.length > 0 && (
+                     <View style={{ marginTop: 2, paddingLeft: 4 }}>
+                       {item.addons.flatMap((a: any) => a.selectedOptions || []).map((opt: any, i: number) => (
+                         <Text key={i} style={{ fontSize: 8, color: '#666', marginTop: 1 }}>
+                           + {opt.name} {opt.price > 0 ? `(₹${opt.price})` : ''}
+                         </Text>
+                       ))}
+                     </View>
+                  )}
                 </View>
                 <View style={[styles.tableCol, styles.colQty]}>
                   <Text style={styles.tableCell}>{qty}</Text>

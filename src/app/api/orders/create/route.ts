@@ -127,6 +127,46 @@ export async function POST(req: Request) {
          try { await redis.del(lockKey); } catch (e) {}
          return NextResponse.json({ error: 'Invalid or unverified OTP token' }, { status: 400, headers: corsHeaders });
       }
+
+      // ── SERVER-SIDE GEO-FENCE CHECK ──────────────────────────────────────────
+      // The mobile app already validated GPS client-side, but we double-check here
+      // to prevent anyone from forging requests directly to the API.
+      const customerLat = body.metadata?.customer_lat ?? body.customer_lat ?? null;
+      const customerLng = body.metadata?.customer_lng ?? body.customer_lng ?? null;
+
+      if (customerLat !== null && customerLng !== null) {
+        try {
+          const { data: geoResult, error: geoError } = await supabase
+            .rpc('validate_order_location', {
+              p_cinema_id: cinema_id,
+              p_customer_lat: Number(customerLat),
+              p_customer_lng: Number(customerLng),
+            });
+
+          if (geoError) {
+            console.warn('[Geo] RPC error (non-blocking):', geoError.message);
+          } else if (geoResult && geoResult.valid === false) {
+            try { await redis.del(lockKey); } catch (e) {}
+            return NextResponse.json(
+              {
+                error: `Cash orders can only be placed from inside the cinema. Your location is ${geoResult.distance_meters}m away (allowed: ${geoResult.allowed_meters}m).`,
+              },
+              { status: 400, headers: corsHeaders }
+            );
+          }
+        } catch (geoErr: any) {
+          console.warn('[Geo] Validation exception (non-blocking):', geoErr.message);
+        }
+      } else {
+        // No GPS coordinates provided for a CASH order — reject to prevent spoofing.
+        // If the app is up-to-date, it always sends coordinates after geo-fence passes.
+        try { await redis.del(lockKey); } catch (e) {}
+        return NextResponse.json(
+          { error: 'Location verification is required for Cash on Delivery orders. Please update your app.' },
+          { status: 400, headers: corsHeaders }
+        );
+      }
+      // ────────────────────────────────────────────────────────────────────────
     }
 
     // --- CINEPOINTS SECURITY CHECK ---

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { redis, keys, isRateLimited, checkIdempotency, updateIdempotencyStatus } from '@/lib/redis';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { normalizePaymentMethod } from '@/lib/payment-methods';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,6 +75,19 @@ export async function POST(req: Request) {
       }
     }
 
+    // Initialize server-only privileged admin client for secure DB operations
+    let adminSupabase: any = null;
+    try {
+      adminSupabase = await createAdminClient();
+    } catch (adminErr: any) {
+      console.error('[ORDER_CREATE] Failed to initialize admin Supabase client:', adminErr.message);
+      try { await redis.del(lockKey); } catch (e) {}
+      return NextResponse.json(
+        { error: 'Server configuration error: Secure database client unavailable' },
+        { status: 500, headers: corsHeaders }
+      );
+    }
+
     const body = await req.json();
     const { 
       cinema_id, items, total_amount, customer_phone, location, 
@@ -96,7 +110,7 @@ export async function POST(req: Request) {
     }
 
     // Validate cinema active status
-    const { data: cinemaRecord } = await supabase
+    const { data: cinemaRecord } = await adminSupabase
       .from('cinemas')
       .select('name, is_active, status')
       .eq('id', cinema_id)
@@ -110,14 +124,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const p_payment_method = payment_method || 'DEMO_UPI';
+    const paymentInfo = normalizePaymentMethod(payment_method);
+    if (!paymentInfo.isValid || !paymentInfo.canonicalMethod) {
+      try { await redis.del(lockKey); } catch (e) {}
+      return NextResponse.json({ error: 'Invalid or unsupported payment method' }, { status: 400, headers: corsHeaders });
+    }
 
-    if (p_payment_method === 'CASH') {
+    const p_payment_method = paymentInfo.canonicalMethod;
+
+    if (paymentInfo.isCod) {
       if (!actualVerificationToken) {
         try { await redis.del(lockKey); } catch (e) {}
         return NextResponse.json({ error: 'OTP Verification Token is required for Cash on Delivery' }, { status: 400, headers: corsHeaders });
       }
-      const { data: session, error: sessionError } = await supabase
+      const { data: session, error: sessionError } = await adminSupabase
         .from('otp_sessions')
         .select('is_verified')
         .eq('id', actualVerificationToken)
@@ -128,38 +148,97 @@ export async function POST(req: Request) {
          return NextResponse.json({ error: 'Invalid or unverified OTP token' }, { status: 400, headers: corsHeaders });
       }
 
-      // ── SERVER-SIDE GEO-FENCE CHECK ──────────────────────────────────────────
-      // The mobile app already validated GPS client-side, but we double-check here
-      // to prevent anyone from forging requests directly to the API.
+      // ── SERVER-SIDE GEO-FENCE CHECK (FAIL-CLOSED) ───────────────────────────
+      // Strict server-side verification: Cash on Delivery orders MUST satisfy the
+      // cinema geofence. Any failure, timeout, malformed result, or exception must
+      // reject the request and prevent order creation.
       const customerLat = body.metadata?.customer_lat ?? body.customer_lat ?? null;
       const customerLng = body.metadata?.customer_lng ?? body.customer_lng ?? null;
 
-      if (customerLat !== null && customerLng !== null) {
+      const numLat = Number(customerLat);
+      const numLng = Number(customerLng);
+
+      if (
+        customerLat !== null &&
+        customerLng !== null &&
+        !isNaN(numLat) &&
+        !isNaN(numLng) &&
+        numLat >= -90 &&
+        numLat <= 90 &&
+        numLng >= -180 &&
+        numLng <= 180
+      ) {
         try {
-          const { data: geoResult, error: geoError } = await supabase
-            .rpc('validate_order_location', {
-              p_cinema_id: cinema_id,
-              p_customer_lat: Number(customerLat),
-              p_customer_lng: Number(customerLng),
-            });
+          const GEO_TIMEOUT_MS = 5000;
+          let timeoutHandle: any = null;
+          const timeoutPromise = new Promise<{ data: any; error: any }>((_, reject) => {
+            timeoutHandle = setTimeout(() => reject(new Error('Location validation timed out')), GEO_TIMEOUT_MS);
+          });
+
+          const rpcPromise = adminSupabase.rpc('validate_order_location', {
+            p_cinema_id: cinema_id,
+            p_customer_lat: numLat,
+            p_customer_lng: numLng,
+          });
+
+          const { data: geoResult, error: geoError } = await Promise.race([
+            rpcPromise,
+            timeoutPromise,
+          ]).finally(() => {
+            if (timeoutHandle) clearTimeout(timeoutHandle);
+          });
 
           if (geoError) {
-            console.warn('[Geo] RPC error (non-blocking):', geoError.message);
-          } else if (geoResult && geoResult.valid === false) {
+            console.error('[Geo] Location validation RPC error:', geoError.code || 'DB_ERROR');
             try { await redis.del(lockKey); } catch (e) {}
             return NextResponse.json(
+              { error: 'Unable to verify order location at this time. Please try again.' },
+              { status: 503, headers: corsHeaders }
+            );
+          }
+
+          if (!geoResult || typeof geoResult !== 'object') {
+            console.error('[Geo] Location validation returned malformed or empty response');
+            try { await redis.del(lockKey); } catch (e) {}
+            return NextResponse.json(
+              { error: 'Location verification failed to produce a valid result. Please try again.' },
+              { status: 502, headers: corsHeaders }
+            );
+          }
+
+          if (geoResult.valid === false) {
+            try { await redis.del(lockKey); } catch (e) {}
+            const dist = typeof geoResult.distance_meters === 'number' ? `${geoResult.distance_meters}m` : 'unknown distance';
+            const allowed = typeof geoResult.allowed_meters === 'number' ? `${geoResult.allowed_meters}m` : 'permitted radius';
+            return NextResponse.json(
               {
-                error: `Cash orders can only be placed from inside the cinema. Your location is ${geoResult.distance_meters}m away (allowed: ${geoResult.allowed_meters}m).`,
+                error: `Cash orders can only be placed from inside the cinema. Your location is ${dist} away (allowed: ${allowed}).`,
               },
               { status: 400, headers: corsHeaders }
             );
           }
+
+          if (geoResult.valid !== true) {
+            console.error('[Geo] Location validation returned unknown status shape');
+            try { await redis.del(lockKey); } catch (e) {}
+            return NextResponse.json(
+              { error: 'Location verification failed. Please try again.' },
+              { status: 502, headers: corsHeaders }
+            );
+          }
+
+          // Geo-validation successfully established: geoResult.valid === true
         } catch (geoErr: any) {
-          console.warn('[Geo] Validation exception (non-blocking):', geoErr.message);
+          const isTimeout = geoErr?.message === 'Location validation timed out';
+          console.error(`[Geo] Location validation failed: ${isTimeout ? 'timeout' : 'exception'}`);
+          try { await redis.del(lockKey); } catch (e) {}
+          return NextResponse.json(
+            { error: isTimeout ? 'Location verification timed out. Please try again.' : 'Unable to verify order location. Please try again.' },
+            { status: isTimeout ? 504 : 503, headers: corsHeaders }
+          );
         }
       } else {
-        // No GPS coordinates provided for a CASH order — reject to prevent spoofing.
-        // If the app is up-to-date, it always sends coordinates after geo-fence passes.
+        // Missing, null, or out-of-range coordinates for COD order — reject
         try { await redis.del(lockKey); } catch (e) {}
         return NextResponse.json(
           { error: 'Location verification is required for Cash on Delivery orders. Please update your app.' },
@@ -172,7 +251,7 @@ export async function POST(req: Request) {
     // --- CINEPOINTS SECURITY CHECK ---
     let enableCinepoints = true;
     try {
-      const { data: feeSettings } = await supabase
+      const { data: feeSettings } = await adminSupabase
         .from('global_settings')
         .select('value')
         .eq('key', 'platform_fees')
@@ -226,7 +305,7 @@ export async function POST(req: Request) {
         return_cash: finalReturnCash
       };
 
-      const { data: orderId, error } = await supabase.rpc('place_order_secure', {
+      const { data: orderId, error } = await adminSupabase.rpc('place_order_secure', {
         p_cinema_id: cinema_id,
         p_display_id: body.display_id,
         p_items: items,
@@ -234,7 +313,7 @@ export async function POST(req: Request) {
         p_location: location,
         p_customer_phone: customer_phone,
         p_client_uuid: idempotencyKey,
-        p_payment_method: body.payment_method || 'DEMO_UPI',
+        p_payment_method: paymentInfo.canonicalMethod,
         p_points_redeemed: body.points_redeemed || 0,
         p_points_earned: body.points_earned || 0,
         p_customer_id: body.customer_id || user?.id,
@@ -256,7 +335,7 @@ export async function POST(req: Request) {
       // Persist cash tracking columns directly to orders table for instant query availability
       if (orderId && (finalCollectedCash > 0 || finalReturnCash > 0)) {
         try {
-          await supabase
+          await adminSupabase
             .from('orders')
             .update({
               collected_cash: finalCollectedCash,

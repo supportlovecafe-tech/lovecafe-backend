@@ -101,11 +101,29 @@ export async function getCachedCombos(cinemaId: string) {
 }
 
 /**
- * Invalidate all outlet caches
+ * Invalidate outlet caches (or all outlets if 'ALL' or undefined)
  */
-export async function invalidateMenuCache(cinemaId: string) {
-  await Promise.all([
-    redis.del(keys.menuCache(cinemaId)),
-    redis.del(keys.comboCache(cinemaId))
-  ]);
+export async function invalidateMenuCache(cinemaId?: string | null) {
+  try {
+    if (!cinemaId || cinemaId === 'ALL') {
+      const supabase = await createClient();
+      const { data: cinemas } = await supabase.from('cinemas').select('id');
+      if (cinemas && cinemas.length > 0) {
+        const promises: Promise<any>[] = [];
+        for (const c of cinemas) {
+          promises.push(redis.del(keys.menuCache(c.id)));
+          promises.push(redis.del(keys.comboCache(c.id)));
+        }
+        await Promise.all(promises);
+      }
+      return;
+    }
+
+    await Promise.all([
+      redis.del(keys.menuCache(cinemaId)),
+      redis.del(keys.comboCache(cinemaId))
+    ]);
+  } catch (e) {
+    console.error('Failed to invalidate menu cache:', e);
+  }
 }

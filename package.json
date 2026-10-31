@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npx tsc src/lib/payment-methods.ts --outDir ./tests/dist --target ES2020 --module CommonJS --skipLibCheck && node --test tests/payment_normalization.test.mjs tests/secure_order_creation.test.mjs"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",

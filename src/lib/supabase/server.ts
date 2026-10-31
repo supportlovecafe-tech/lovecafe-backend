@@ -42,28 +42,16 @@ export async function createClient() {
 
 // Admin client for bypass / internal logic
 export async function createAdminClient() {
-  let cookieStore: any = null;
-  try {
-    cookieStore = await cookies();
-  } catch (e) {
-    // Called outside Next.js request context
+  const activeServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!activeServiceRoleKey || activeServiceRoleKey === 'placeholder') {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required but not configured in environment');
   }
 
-  if (!cookieStore) {
-    const { createClient: createBaseClient } = require('@supabase/supabase-js');
-    return createBaseClient(supabaseUrl, serviceRoleKey);
-  }
-
-  return createServerClient(
-    supabaseUrl,
-    serviceRoleKey,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    }
-  )
+  const { createClient: createBaseClient } = require('@supabase/supabase-js');
+  return createBaseClient(supabaseUrl, activeServiceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
 }

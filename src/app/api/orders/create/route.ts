@@ -109,6 +109,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid order data' }, { status: 400, headers: corsHeaders });
     }
 
+    // Sanitize and validate customer mobile number (10 digits)
+    const rawDigits = String(customer_phone).replace(/\D/g, '');
+    const cleanPhone = (rawDigits.startsWith('91') && rawDigits.length === 12) 
+      ? rawDigits.substring(2) 
+      : rawDigits;
+    if (cleanPhone.length !== 10) {
+      try { await redis.del(lockKey); } catch (e) {}
+      return NextResponse.json({ error: 'Invalid customer phone number. Must be exactly 10 digits.' }, { status: 400, headers: corsHeaders });
+    }
+
+    // Strip any emoji characters from location to protect thermal printers and displays
+    const cleanLocation = String(location)
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}]/gu, '')
+      .trim();
+
+    if (!cleanLocation) {
+      try { await redis.del(lockKey); } catch (e) {}
+      return NextResponse.json({ error: 'Invalid location or seat number' }, { status: 400, headers: corsHeaders });
+    }
+
     const is_pos = Boolean(body.is_pos || metadata?.is_pos || location?.toLowerCase().includes('pos') || location?.toLowerCase().includes('counter'));
 
     // Validate cinema active status & online ordering status
@@ -320,8 +340,8 @@ export async function POST(req: Request) {
         p_display_id: body.display_id,
         p_items: items,
         p_total_amount: finalAmount, // USING SERVER CALCULATED AMOUNT
-        p_location: location,
-        p_customer_phone: customer_phone,
+        p_location: cleanLocation,
+        p_customer_phone: cleanPhone,
         p_client_uuid: idempotencyKey,
         p_payment_method: paymentInfo.canonicalMethod,
         p_points_redeemed: body.points_redeemed || 0,

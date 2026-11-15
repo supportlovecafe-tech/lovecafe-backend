@@ -53,11 +53,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid items format' }, { status: 400, headers: corsHeaders });
     }
 
-    // Check if outlet is in Service Mode / Inactive
+    // Check if outlet is in Service Mode / Inactive or Online Orders Paused
     if (cinema_id) {
       const { data: cinemaData } = await supabase
         .from('cinemas')
-        .select('id, name, is_active')
+        .select('id, name, is_active, is_online_order_enabled')
         .eq('id', cinema_id)
         .maybeSingle();
 
@@ -65,6 +65,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ 
           error: `This outlet (${cinemaData.name || 'Selected outlet'}) is currently in Service Mode and not accepting orders.`,
           is_inactive: true 
+        }, { status: 400, headers: corsHeaders });
+      }
+
+      if (!is_pos && cinemaData && cinemaData.is_online_order_enabled === false) {
+        return NextResponse.json({ 
+          error: 'UNABLE to PLACE order Please contact outlet',
+          is_online_order_disabled: true 
         }, { status: 400, headers: corsHeaders });
       }
     }

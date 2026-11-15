@@ -109,10 +109,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid order data' }, { status: 400, headers: corsHeaders });
     }
 
-    // Validate cinema active status
+    const is_pos = Boolean(body.is_pos || metadata?.is_pos || location?.toLowerCase().includes('pos') || location?.toLowerCase().includes('counter'));
+
+    // Validate cinema active status & online ordering status
     const { data: cinemaRecord } = await adminSupabase
       .from('cinemas')
-      .select('name, is_active, status')
+      .select('name, is_active, status, is_online_order_enabled')
       .eq('id', cinema_id)
       .single();
 
@@ -120,6 +122,14 @@ export async function POST(req: Request) {
       try { await redis.del(lockKey); } catch (e) {}
       return NextResponse.json(
         { error: `This outlet (${cinemaRecord.name || 'Current Outlet'}) is currently in service mode and not accepting orders.` },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    if (!is_pos && cinemaRecord && cinemaRecord.is_online_order_enabled === false) {
+      try { await redis.del(lockKey); } catch (e) {}
+      return NextResponse.json(
+        { error: 'UNABLE to PLACE order Please contact outlet' },
         { status: 400, headers: corsHeaders }
       );
     }

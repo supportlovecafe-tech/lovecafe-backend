@@ -20,7 +20,7 @@ export async function OPTIONS(req: NextRequest) {
 export async function POST(req: NextRequest) {
 
   try {
-    const { email, password } = await req.json();
+    const { email, password, cinemaId } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json(
@@ -29,11 +29,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[API] Admin setup requested for outlet user: ${email}`);
+    const normalizedEmail = email.trim().toLowerCase();
+    console.log(`[API] Admin setup requested for outlet user: ${normalizedEmail}`);
 
     // Try to create the user
     let { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       password,
       email_confirm: true,
     });
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       const { data: profileData, error: profileErr } = await supabaseAdmin
         .from('profiles')
         .select('id')
-        .eq('email', email)
+        .eq('email', normalizedEmail)
         .single();
         
       if (profileErr || !profileData) {
@@ -67,15 +68,33 @@ export async function POST(req: NextRequest) {
       throw createError;
     }
 
-    // Ensure the user has the OUTLET_MANAGER role in profiles
+    // Resolve cinema_id from explicit param or matching cinemas.login_email so orders RLS always matches
+    let resolvedCinemaId = cinemaId || null;
+    if (!resolvedCinemaId) {
+      const { data: matchedCinema } = await supabaseAdmin
+        .from('cinemas')
+        .select('id')
+        .ilike('login_email', normalizedEmail)
+        .maybeSingle();
+      if (matchedCinema?.id) {
+        resolvedCinemaId = matchedCinema.id;
+      }
+    }
+
+    // Ensure the user has the OUTLET_MANAGER role (and cinema_id when known) in profiles
     if (userId) {
+      const profileUpsert: Record<string, any> = {
+        id: userId,
+        email: normalizedEmail,
+        role: 'OUTLET_MANAGER',
+      };
+      if (resolvedCinemaId) {
+        profileUpsert.cinema_id = resolvedCinemaId;
+      }
+
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .upsert({ 
-            id: userId,
-            email: email,
-            role: 'OUTLET_MANAGER'
-        }, { onConflict: 'email' });
+        .upsert(profileUpsert, { onConflict: 'email' });
         
       if (profileError) throw profileError;
     }

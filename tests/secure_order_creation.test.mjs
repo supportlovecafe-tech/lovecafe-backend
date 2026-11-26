@@ -168,7 +168,7 @@ class MockPostgresSecurityEngine {
       }
       if (staff) {
         if (staff.role === 'SUPER_ADMIN') return true;
-        if (['OUTLET_MANAGER', 'OUTLET_STAFF'].includes(staff.role) && staff.cinema_id === order.cinema_id) {
+        if (['OUTLET_MANAGER', 'OUTLET_STAFF', 'OUTLET_CHEF'].includes(staff.role) && staff.cinema_id === order.cinema_id) {
           return true;
         }
       }

@@ -134,7 +134,7 @@ CREATE POLICY "Orders select policy" ON public.orders
             WHERE (p.id = auth.uid() OR p.email = auth.jwt()->>'email')
               AND (
                   p.role = 'SUPER_ADMIN'
-                  OR (p.role IN ('OUTLET_MANAGER', 'OUTLET_STAFF') AND p.cinema_id = orders.cinema_id)
+                  OR (p.role IN ('OUTLET_MANAGER', 'OUTLET_STAFF', 'OUTLET_CHEF') AND p.cinema_id = orders.cinema_id)
               )
         )
     );
@@ -149,7 +149,7 @@ CREATE POLICY "Orders staff update policy" ON public.orders
             WHERE (p.id = auth.uid() OR p.email = auth.jwt()->>'email')
               AND (
                   p.role = 'SUPER_ADMIN'
-                  OR (p.role IN ('OUTLET_MANAGER', 'OUTLET_STAFF') AND p.cinema_id = orders.cinema_id)
+                  OR (p.role IN ('OUTLET_MANAGER', 'OUTLET_STAFF', 'OUTLET_CHEF') AND p.cinema_id = orders.cinema_id)
               )
         )
     )
@@ -159,7 +159,7 @@ CREATE POLICY "Orders staff update policy" ON public.orders
             WHERE (p.id = auth.uid() OR p.email = auth.jwt()->>'email')
               AND (
                   p.role = 'SUPER_ADMIN'
-                  OR (p.role IN ('OUTLET_MANAGER', 'OUTLET_STAFF') AND p.cinema_id = orders.cinema_id)
+                  OR (p.role IN ('OUTLET_MANAGER', 'OUTLET_STAFF', 'OUTLET_CHEF') AND p.cinema_id = orders.cinema_id)
               )
         )
     );

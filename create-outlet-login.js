@@ -58,16 +58,27 @@ async function setupOutletLogin() {
       console.log("User created successfully!");
   }
 
-  // 2. Add to profiles table as OUTLET_MANAGER
+  // 2. Add to profiles table as OUTLET_MANAGER (with cinema_id linked if cinema exists)
   if (userRecord && userRecord.user) {
       console.log("Setting role to OUTLET_MANAGER in profiles table...");
+      const { data: matchedCinema } = await supabaseAdmin
+        .from('cinemas')
+        .select('id')
+        .ilike('login_email', email)
+        .maybeSingle();
+
+      const profileUpsert = {
+        id: userRecord.user.id,
+        email: email,
+        role: 'OUTLET_MANAGER'
+      };
+      if (matchedCinema?.id) {
+        profileUpsert.cinema_id = matchedCinema.id;
+      }
+
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .upsert({ 
-            id: userRecord.user.id,
-            email: email,
-            role: 'OUTLET_MANAGER'
-        }, { onConflict: 'email' });
+        .upsert(profileUpsert, { onConflict: 'email' });
         
       if (profileError) {
           console.log("Error setting profile role:", profileError);

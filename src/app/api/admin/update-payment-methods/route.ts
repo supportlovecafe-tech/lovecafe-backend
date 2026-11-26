@@ -34,8 +34,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('cinemas')
       .update({ 
-        allowed_payment_methods: allowedPaymentMethods,
-        updated_at: new Date().toISOString()
+        allowed_payment_methods: allowedPaymentMethods
       })
       .eq('id', cinemaId)
       .select('id, name, allowed_payment_methods');

@@ -302,6 +302,7 @@ export async function POST(req: Request) {
     {
       // --- SERVER-SIDE ANTI-TAMPERING: RE-CALCULATE PRICE ---
       let finalAmount = total_amount;
+      let serverBreakdown: any = null;
       try {
         const { POST: validatePOST } = require('../validate/route');
         const validateReq = new Request('http://localhost/api/orders/validate', {
@@ -312,9 +313,10 @@ export async function POST(req: Request) {
         const validateRes = await validatePOST(validateReq);
         if (validateRes.ok) {
            const validateData = await validateRes.json();
-           const serverTotal = validateData.breakdown?.total || total_amount;
+           serverBreakdown = validateData.breakdown || null;
+           const serverTotal = serverBreakdown?.total ?? total_amount;
            const discount = (body.points_redeemed || 0) * 0.1; // 10 points = 1 rupee
-           finalAmount = Math.max(0, serverTotal - discount);
+           finalAmount = Math.max(0, Math.round((serverTotal - discount) * 100) / 100);
            console.log(`[Security] Client requested: ${total_amount}, Server Calculated: ${finalAmount}`);
         } else {
            const errData = await validateRes.json().catch(() => ({}));
@@ -326,10 +328,20 @@ export async function POST(req: Request) {
       }
       
       const finalCollectedCash = Number(collected_cash !== undefined ? collected_cash : (metadata?.collected_cash ?? (metadata?.split_collected_cash ?? 0)));
-      const finalReturnCash = Number(return_cash !== undefined ? return_cash : (metadata?.return_cash ?? (metadata?.split_return_cash ?? 0)));
+      let finalReturnCash = Number(return_cash !== undefined ? return_cash : (metadata?.return_cash ?? (metadata?.split_return_cash ?? 0)));
+
+      if ((paymentInfo.canonicalMethod === 'POS_CASH' || paymentInfo.canonicalMethod === 'CASH') && finalCollectedCash > 0) {
+        finalReturnCash = Math.max(0, Math.round((finalCollectedCash - finalAmount) * 100) / 100);
+      }
 
       const orderMetadata = {
         ...(body.metadata || {}),
+        ...(serverBreakdown ? {
+          subtotal: serverBreakdown.subtotal,
+          cgst: serverBreakdown.cgst,
+          sgst: serverBreakdown.sgst,
+          platform_charges: serverBreakdown.platform_charges,
+        } : {}),
         ...(actualStaffId ? { staff_id: actualStaffId } : {}),
         collected_cash: finalCollectedCash,
         return_cash: finalReturnCash
